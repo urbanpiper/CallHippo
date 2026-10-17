@@ -1,0 +1,17 @@
+{
+  "name": "callhippo-agent-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Alerts a Slack channel when no CallHippo agent is available to take calls.",
+  "type": "module",
+  "scripts": {
+    "check": "node monitor.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "playwright-core": "1.59.1"
+  }
+}
