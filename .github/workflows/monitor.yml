@@ -1,0 +1,60 @@
+name: CallHippo agent monitor
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      test_watch_emails:
+        description: 'Test only: comma-separated emails that override WATCH_EMAILS for this run'
+        required: false
+        default: ''
+
+concurrency:
+  group: callhippo-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The monitor keeps its down/up state in .state/state.json between runs.
+      - name: Restore state
+        uses: actions/cache/restore@v4
+        with:
+          path: .state
+          key: monitor-state-${{ github.run_id }}
+          restore-keys: monitor-state-
+
+      - name: Check agent availability
+        env:
+          CALLHIPPO_COOKIE: ${{ secrets.CALLHIPPO_COOKIE }}
+          CALLHIPPO_USER_ID: ${{ secrets.CALLHIPPO_USER_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          WATCH_EMAILS: ${{ inputs.test_watch_emails != '' && inputs.test_watch_emails || secrets.WATCH_EMAILS }}
+          ALERT_MODE: ${{ vars.ALERT_MODE }}
+          BREAK_COUNTS_AS_ONLINE: ${{ vars.BREAK_COUNTS_AS_ONLINE }}
+          REMINDER_MINUTES: ${{ vars.REMINDER_MINUTES }}
+          # A test run must not disturb the real down/up state.
+          STATE_FILE: ${{ inputs.test_watch_emails != '' && '.state/test.json' || '.state/state.json' }}
+        run: npm run check
+
+      - name: Save state
+        if: always() && inputs.test_watch_emails == ''
+        uses: actions/cache/save@v4
+        with:
+          path: .state
+          key: monitor-state-${{ github.run_id }}
